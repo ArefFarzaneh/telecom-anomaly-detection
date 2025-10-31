@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Iran Sector Anomaly Map</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 100vh;
+      width: 100vw;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // Create the map centered on Iran
+    const map = L.map('map').setView([32.4279, 53.6880], 5.5);
+
+    // Add tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 10,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Store sector markers
+    const sectorMarkers = {};
+
+    // Connect to WebSocket
+    const ws = new WebSocket("ws://localhost:8000/ws/kpi");
+    ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  const records = Array.isArray(data) ? data : [data];
+
+  for (const msg of records) {
+    if (msg.type !== "kpi_update") continue;
+
+    const p = msg.payload;
+    const id = p.sector_id;
+    const lat = p.lat;
+    const lon = p.lon;
+    const isAnomaly = p.is_anomaly === true;
+
+    if (!lat || !lon) continue;
+
+    const color = isAnomaly ? 'red' : 'green';
+
+    if (sectorMarkers[id]) {
+      // Update existing marker: style + popup
+      const marker = sectorMarkers[id];
+      marker.setStyle({ color, fillColor: color });
+
+      // Rebuild and update popup content
+      marker.setPopupContent(
+        `<strong>Sector:</strong> ${id}<br>` +
+        `<strong>Province:</strong> ${p.province}<br>` +
+        `<strong>Payload:</strong> ${p.payload}<br>` +
+        `<strong>Throughput:</strong> ${p.thr}<br>` +
+        `<strong>PRB:</strong> ${p.prb}<br>` +
+        `<strong>Availability:</strong> ${p.avail}<br>` +
+        `<strong>Status:</strong> <span style="color:${isAnomaly ? 'red' : 'green'}; font-weight:bold;">${isAnomaly ? 'ANOMALY' : 'NORMAL'}</span>`
+      );
+    } else {
+      // Create new marker
+      const marker = L.circleMarker([lat, lon], {
+        radius: 5,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.9
+      })
+        .addTo(map)
+        .bindPopup(
+          `<strong>Sector:</strong> ${id}<br>` +
+          `<strong>Province:</strong> ${p.province}<br>` +
+          `<strong>Payload:</strong> ${p.payload}<br>` +
+          `<strong>Throughput:</strong> ${p.thr}<br>` +
+          `<strong>PRB:</strong> ${p.prb}<br>` +
+          `<strong>Availability:</strong> ${p.avail}<br>` +
+          `<strong>Status:</strong> <span style="color:${isAnomaly ? 'red' : 'green'}; font-weight:bold;">${isAnomaly ? 'ANOMALY' : 'NORMAL'}</span>`
+        );
+
+      sectorMarkers[id] = marker;
+    }
+  }
+};
+    ws.onopen = () => console.log("✅ WebSocket connected");
+    ws.onclose = () => console.warn("❌ WebSocket disconnected");
+  </script>
+</body>
+</html>

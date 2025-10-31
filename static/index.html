@@ -1,0 +1,75 @@
+<!-- static/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Telecom KPI Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; display:flex; gap:16px; padding:16px; }
+    #left { flex:1; }
+    #right { width:320px; }
+    .anomaly { color: red; font-weight: bold; }
+    .normal { color: green; }
+    pre { max-height: 60vh; overflow:auto; background:#f7f7f7; padding:8px; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h2>Live KPI Stream</h2>
+    <div id="last-updates"></div>
+    <h3>Recent Messages (raw)</h3>
+    <pre id="raw"></pre>
+  </div>
+
+  <div id="right">
+    <h3>Anomaly Feed</h3>
+    <ul id="anomalies"></ul>
+  </div>
+
+<script>
+  const raw = document.getElementById('raw');
+  const last = document.getElementById('last-updates');
+  const anomalyList = document.getElementById('anomalies');
+
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/kpi');
+
+  ws.onopen = () => {
+    console.log("Connected to server");
+  }
+
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      // ignore keepalive pings
+      if (msg.ping) return;
+      if (msg.type === 'kpi_update') {
+        const p = msg.payload;
+        // show concise update
+        const line = document.createElement('div');
+        line.innerHTML = `<strong>${p.sector_id}</strong> (${p.province}) — payload: ${p.payload}, prb: ${p.prb}, avail: ${p.avail} — <span class="${p.is_anomaly ? 'anomaly' : 'normal'}">${p.is_anomaly ? 'ANOMALY' : 'OK'}</span>`;
+        last.prepend(line);
+
+        // raw viewer
+        raw.textContent = JSON.stringify(p, null, 2) + "\n\n" + raw.textContent;
+
+        if (p.is_anomaly) {
+          const li = document.createElement('li');
+          li.textContent = `${p.sector_id} @ ${new Date(p.timestamp).toLocaleTimeString()} — payload ${p.payload}`;
+          anomalyList.prepend(li);
+          // keep list short
+          while (anomalyList.children.length > 50) anomalyList.removeChild(anomalyList.lastChild);
+        }
+      } else {
+        // other messages
+        raw.textContent = JSON.stringify(msg) + "\n\n" + raw.textContent;
+      }
+    } catch (e) {
+      console.error("Failed to parse", e);
+    }
+  }
+
+  ws.onclose = () => { console.log("WS closed"); }
+  ws.onerror = (e) => { console.error("WS error", e); }
+</script>
+</body>
+</html>
