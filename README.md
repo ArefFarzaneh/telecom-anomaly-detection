@@ -69,5 +69,5 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## Open in browser
-Interactive Map: http://localhost:8000
-Live Dashboard: http://localhost:8000/static/index.html
+**`Interactive Map:`** http://localhost:8000
+**`Live Dashboard:`** http://localhost:8000/static/index.html
